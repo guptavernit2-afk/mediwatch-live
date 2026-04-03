@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MediWatch AI (Dynamic Polling Edition)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        :root { --bg-main: #060818; --bg-card: rgba(255, 255, 255, 0.03); --bg-hover: rgba(255, 255, 255, 0.06); --border-color: rgba(255, 255, 255, 0.06); --text-main: #e2e8f0; --text-muted: #64748b; --accent-blue: #3b82f6; --accent-green: #22c55e; --accent-yellow: #f59e0b; --accent-red: #ef4444; --accent-purple: #8b5cf6; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg-main); color: var(--text-main); min-height: 100vh; overflow: hidden; }
+        ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; } ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+        .header { display: flex; align-items: center; justify-content: space-between; padding: 16px 30px; background: rgba(6, 8, 24, 0.8); border-bottom: 1px solid var(--border-color); backdrop-filter: blur(20px); position: sticky; top: 0; z-index: 100; }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .logo { width: 36px; height: 36px; background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple)); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); }
+        .header h1 { font-size: 18px; font-weight: 600; background: linear-gradient(135deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .header-subtitle { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+        .header-right { display: flex; align-items: center; gap: 15px; }
+        .btn-primary { background: var(--accent-blue); color: white; border: none; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2); }
+        .btn-primary:hover { background: #2563eb; transform: translateY(-1px); }
+        .btn-secondary { background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s; }
+        .btn-secondary:hover { background: rgba(255,255,255,0.15); transform: translateY(-1px); }
+        .sync-badge { display: flex; align-items: center; gap: 6px; background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2); padding: 5px 12px; border-radius: 20px; font-size: 12px; color: var(--accent-blue); margin-left: 10px; transition: all 0.3s;}
+        .sync-badge.live-mode { background: rgba(34,197,94,0.15); border-color: rgba(34,197,94,0.4); color: #4ade80; }
+        .time { font-size: 13px; color: var(--text-muted); min-width: 80px; text-align: right;}
+        
+        .lang-dropdown { background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 8px; border-radius: 8px; font-size: 13px; outline: none; cursor: pointer; }
+        .lang-dropdown option { background-color: #0b0f24; color: #e2e8f0; }
+        
+        .stats-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border-color); }
+        .stat-item { padding: 14px 24px; background: rgba(6,8,24,0.8); }
+        .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+        .stat-value { font-size: 22px; font-weight: 600; margin-top: 4px; }
+        .stat-value.blue { color: #60a5fa; } .stat-value.green { color: var(--accent-green); } .stat-value.yellow { color: var(--accent-yellow); } .stat-value.red { color: var(--accent-red); }
+        .container { display: flex; height: calc(100vh - 126px); }
+        .sidebar { width: 320px; background: rgba(255,255,255,0.01); border-right: 1px solid var(--border-color); overflow-y: auto; padding: 20px 16px; flex-shrink: 0; }
+        .main { flex: 1; overflow-y: auto; padding: 24px 28px; background: var(--bg-main); }
+        .sidebar-title { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; padding: 0 4px; display: flex; justify-content: space-between;}
+        .patient-card { padding: 14px 16px; border-radius: 12px; margin-bottom: 8px; cursor: pointer; border: 1px solid var(--border-color); background: var(--bg-card); transition: all 0.2s; position: relative; overflow: hidden; }
+        .patient-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: 3px 0 0 3px; }
+        .patient-card.normal::before { background: var(--accent-green); } .patient-card.warning::before { background: var(--accent-yellow); } .patient-card.critical::before { background: var(--accent-red); }
+        .patient-card:hover { background: var(--bg-hover); transform: translateX(2px); }
+        .patient-card.selected { background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.3); }
+        .card-top { display: flex; justify-content: space-between; align-items: flex-start; }
+        .patient-name { font-size: 14px; font-weight: 500; color: var(--text-main); display: flex; align-items: center; flex-wrap: wrap; gap: 6px;}
+        .patient-meta { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+        .badge { padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 600; letter-spacing: 0.5px; }
+        .badge.normal { background: rgba(34,197,94,0.1); color: var(--accent-green); border: 1px solid rgba(34,197,94,0.2); } .badge.warning { background: rgba(245,158,11,0.1); color: var(--accent-yellow); border: 1px solid rgba(245,158,11,0.2); } .badge.critical { background: rgba(239,68,68,0.1); color: var(--accent-red); border: 1px solid rgba(239,68,68,0.2); }
+        .mini-vitals { display: flex; gap: 10px; margin-top: 10px; } .mini-vital { font-size: 11px; color: var(--text-muted); } .mini-vital span { color: #94a3b8; font-weight: 500; }
+        .patient-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
+        .patient-title { font-size: 24px; font-weight: 600; color: #f1f5f9; display: flex; align-items: center; gap: 12px;} .patient-info { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+        .vitals-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+        .vital-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px; position: relative; overflow: hidden; transition: all 0.3s; }
+        .vital-card::after { content: ''; position: absolute; top: 0; right: 0; width: 60px; height: 60px; border-radius: 0 16px 0 60px; opacity: 0.06; }
+        .vital-card.normal::after { background: var(--accent-green); } .vital-card.alert { border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.05); } .vital-card.alert::after { background: var(--accent-red); opacity: 0.1; }
+        .vital-icon { font-size: 20px; margin-bottom: 12px; } .vital-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .vital-value { font-size: 36px; font-weight: 700; line-height: 1; } .vital-card.normal .vital-value { color: var(--text-main); } .vital-card.alert .vital-value { color: var(--accent-red); } .vital-unit { font-size: 12px; color: #475569; margin-top: 6px; }
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+        .section { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px; }
+        .section-header { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; } .section-title { font-size: 13px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+        .alert-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px; background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.15); border-radius: 10px; margin-bottom: 8px; }
+        .alert-icon { width: 32px; height: 32px; background: rgba(239,68,68,0.15); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+        .alert-content { flex: 1; } .alert-title { font-size: 13px; font-weight: 500; color: #fca5a5; } .alert-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        .no-alerts { text-align: center; padding: 20px; color: var(--accent-green); font-size: 13px; }
+        .ai-section { background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(139,92,246,0.08)); border: 1px solid rgba(99,102,241,0.2); border-radius: 16px; padding: 20px; margin-bottom: 24px; }
+        .ai-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; } .ai-header-left { display: flex; align-items: center; gap: 10px; } .ai-badge { background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple)); padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; color: white; }
+        .ai-text { font-size: 14px; color: #cbd5e1; line-height: 1.7; }
+        .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+        .chart-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px; }
+        .chart-title { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; }
+        .gauge-container { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px 0; } .gauge-value { font-size: 42px; font-weight: 700; } .gauge-label { font-size: 12px; color: var(--text-muted); margin-top: 4px; } .gauge-bar { width: 100%; height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; margin-top: 16px; overflow: hidden; } .gauge-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+        .modal-overlay.active { opacity: 1; pointer-events: all; }
+        .modal-content { background: #0b0f24; border: 1px solid var(--border-color); border-radius: 16px; width: 400px; padding: 24px; transform: translateY(20px); transition: transform 0.3s; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+        .modal-overlay.active .modal-content { transform: translateY(0); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; } .modal-header h2 { font-size: 18px; font-weight: 600; } .close-btn { background: transparent; border: none; color: var(--text-muted); font-size: 24px; cursor: pointer; } .close-btn:hover { color: white; }
+        .form-group { margin-bottom: 16px; } .form-group label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; } .form-group input { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: white; padding: 10px 12px; border-radius: 8px; font-family: inherit; font-size: 14px; outline: none; transition: border 0.2s; } .form-group input:focus { border-color: var(--accent-blue); background: rgba(255,255,255,0.08); } .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .btn-submit { width: 100%; background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple)); border: none; padding: 12px; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; margin-top: 10px; transition: opacity 0.2s; } .btn-submit:hover { opacity: 0.9; }
+        #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
+        .toast { background: rgba(59, 130, 246, 0.9); backdrop-filter: blur(10px); color: white; padding: 12px 20px; border-radius: 8px; font-size: 13px; font-weight: 500; box-shadow: 0 10px 20px rgba(0,0,0,0.2); transform: translateX(120%); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); } .toast.show { transform: translateX(0); }
+        .toast.danger { background: rgba(239, 68, 68, 0.9); }
+        .spinner { width: 36px; height: 36px; border: 3px solid rgba(59,130,246,0.2); border-top-color: var(--accent-blue); border-radius: 50%; animation: spin 0.8s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } } .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; gap: 12px; }
+        
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
+            70% { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+        .sensor-live-badge {
+            font-size: 10px; font-weight: 600; letter-spacing: 0.5px;
+            background: rgba(34, 197, 94, 0.15); color: #4ade80;
+            border: 1px solid rgba(34, 197, 94, 0.4);
+            padding: 3px 8px; border-radius: 6px;
+            display: inline-flex; align-items: center; gap: 4px;
+            animation: pulse-green 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left"><div class="logo">🏥</div><div><h1>MediWatch AI</h1><div class="header-subtitle" data-i18n="subtitle">Clinical Support Dashboard</div></div></div>
+        <div class="header-right">
+            <select id="lang-select" class="lang-dropdown" onchange="changeLanguage()">
+                <option value="en">English</option>
+                <option value="hi">हिंदी (Hindi)</option>
+                <option value="kn">ಕನ್ನಡ (Kannada)</option>
+            </select>
+            
+            <button class="btn-secondary" onclick="window.open('/api/export', '_blank')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> 
+                <span data-i18n="export">Export CSV</span>
+            </button>
+            <button class="btn-primary" onclick="openModal()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> 
+                <span data-i18n="addPatient">Add Patient</span>
+            </button>
+            <div class="sync-badge" id="syncIndicator">↻ Auto-Sync: 20s</div>
+            <div class="time" id="clock"></div>
+        </div>
+    </div>
+
+    <div class="stats-bar">
+        <div class="stat-item"><div class="stat-label" data-i18n="total">Total Patients</div><div class="stat-value blue" id="stat-total">-</div></div>
+        <div class="stat-item"><div class="stat-label" data-i18n="normal">Normal</div><div class="stat-value green" id="stat-normal">-</div></div>
+        <div class="stat-item"><div class="stat-label" data-i18n="warning">Warning</div><div class="stat-value yellow" id="stat-warning">-</div></div>
+        <div class="stat-item"><div class="stat-label" data-i18n="critical">Critical</div><div class="stat-value red" id="stat-critical">-</div></div>
+    </div>
+
+    <div class="container">
+        <div class="sidebar">
+            <div class="sidebar-title"><span data-i18n="patientList">Patient List</span></div>
+            <div id="patient-list"><div class="loading"><div class="spinner"></div></div></div>
+        </div>
+        <div class="main" id="main-panel">
+            <div class="loading"><div class="spinner"></div><div style="color:#475569;font-size:13px">Fetching Patient Data...</div></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="addPatientModal">
+        <div class="modal-content">
+            <div class="modal-header"><h2 data-i18n="addModalTitle">Add New Patient</h2><button class="close-btn" onclick="closeModal()">&times;</button></div>
+            <form id="addPatientForm" onsubmit="submitPatient(event)">
+                <div class="form-group"><label>Patient Name</label><input type="text" id="p_name" required></div>
+                <div class="form-row">
+                    <div class="form-group"><label>Age</label><input type="number" id="p_age" required></div>
+                    <div class="form-group"><label>Heart Rate (bpm)</label><input type="number" id="p_hr" required></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>BP Systolic</label><input type="number" id="p_sys" required></div>
+                    <div class="form-group"><label>BP Diastolic</label><input type="number" id="p_dia" required></div>
+                </div>
+                <div class="form-group"><label>Oxygen Saturation (%)</label><input type="number" id="p_ox" required></div>
+                <button type="submit" class="btn-submit" data-i18n="regBtn">Register Patient</button>
+            </form>
+        </div>
+    </div>
+    <div id="toast-container"></div>
+    
+    <audio id="alert-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+
+    <script>
+        const i18n = {
+            en: { subtitle: "Clinical Support Dashboard", export: "Export CSV", addPatient: "Add Patient", total: "Total Patients", normal: "Normal", warning: "Warning", critical: "Critical", patientList: "Patient List", addModalTitle: "Add New Patient", regBtn: "Register Patient", alertsTitle: "⚠ Anomaly Alerts", noAlerts: "✓ All vitals within normal range", predictiveAI: "Predictive Clinical AI", speakBtn: "Speak", hrTrend: "❤️ Heart Rate Trend", bpTrend: "🩺 Blood Pressure Trend", o2Sat: "💨 Oxygen Saturation", radar: "📊 Vitals Radar", alertUrgent: "🚨 URGENT: Patient entered CRITICAL condition!", measured: "Measured", normalRange: "Normal range", abnormal: "ABNORMAL", heart_rate: "Heart Rate", blood_pressure_sys: "BP Systolic", blood_pressure_dia: "BP Diastolic", oxygen: "Oxygen", liveSensor: "🔌 LIVE SENSOR" },
+            hi: { subtitle: "क्लिनिकल सपोर्ट डैशबोर्ड", export: "CSV निर्यात करें", addPatient: "रोगी जोड़ें", total: "कुल रोगी", normal: "सामान्य", warning: "चेतावनी", critical: "गंभीर", patientList: "रोगी सूची", addModalTitle: "नया रोगी जोड़ें", regBtn: "रोगी पंजीकृत करें", alertsTitle: "⚠ विसंगति अलर्ट", noAlerts: "✓ सभी विटल्स सामान्य सीमा में", predictiveAI: "प्रेडिक्टिव क्लिनिकल AI", speakBtn: "बोलें", hrTrend: "❤️ हार्ट रेट ट्रेंड", bpTrend: "🩺 ब्लड प्रेशर ट्रेंड", o2Sat: "💨 ऑक्सीजन संतृप्ति", radar: "📊 विटल्स रडार", alertUrgent: "🚨 तत्काल: रोगी गंभीर स्थिति में है!", measured: "मापा गया", normalRange: "सामान्य सीमा", abnormal: "असामान्य", heart_rate: "हार्ट रेट", blood_pressure_sys: "बीपी सिस्टोलिक", blood_pressure_dia: "बीपी डायस्टोलिक", oxygen: "ऑक्सीजन", liveSensor: "🔌 लाइव सेंसर" },
+            kn: { subtitle: "ಕ್ಲಿನಿಕಲ್ ಬೆಂಬಲ ಡ್ಯಾಶ್‌ಬೋರ್ಡ್", export: "CSV ರಫ್ತು", addPatient: "ರೋಗಿಯನ್ನು ಸೇರಿಸಿ", total: "ಒಟ್ಟು ರೋಗಿಗಳು", normal: "ಸಾಮಾನ್ಯ", warning: "ಎಚ್ಚರಿಕೆ", critical: "ಗಂಭೀರ", patientList: "ರೋಗಿಗಳ ಪಟ್ಟಿ", addModalTitle: "ಹೊಸ ರೋಗಿಯನ್ನು ಸೇರಿಸಿ", regBtn: "ರೋಗಿಯನ್ನು ನೋಂದಾಯಿಸಿ", alertsTitle: "⚠ ಅಸಂಗತತೆ ಎಚ್ಚರಿಕೆಗಳು", noAlerts: "✓ ಎಲ್ಲಾ ಪ್ರಮುಖ ಅಂಶಗಳು ಸಾಮಾನ್ಯ", predictiveAI: "ಮುನ್ಸೂಚಕ ಕ್ಲಿನಿಕಲ್ AI", speakBtn: "ಮಾತನಾಡು", hrTrend: "❤️ ಹೃದಯ ಬಡಿತದ ಪ್ರವೃತ್ತಿ", bpTrend: "🩺 ರಕ್ತದೊತ್ತಡದ ಪ್ರವೃತ್ತಿ", o2Sat: "💨 ಆಮ್ಲಜನಕದ ಶುದ್ಧತ್ವ", radar: "📊 ವಿಟಲ್ಸ್ ರೇಡಾರ್", alertUrgent: "🚨 ತುರ್ತು: ರೋಗಿಯು ಗಂಭೀರ ಸ್ಥಿತಿಯಲ್ಲಿದ್ದಾರೆ!", measured: "ಅಳೆಯಲಾಗಿದೆ", normalRange: "ಸಾಮಾನ್ಯ ಶ್ರೇಣಿ", abnormal: "ಅಸಹಜ", heart_rate: "ಹೃದಯ ಬಡಿತ", blood_pressure_sys: "ಬಿಪಿ ಸಿಸ್ಟೋಲಿಕ್", blood_pressure_dia: "ಬಿಪಿ ಡಯಾಸ್ಟೋಲಿಕ್", oxygen: "ಆಮ್ಲಜನಕ", liveSensor: "🔌 ಲೈವ್ ಸೆನ್ಸಾರ್" }
+        };
+
+        const t = (key) => {
+            const lang = document.getElementById('lang-select').value;
+            return i18n[lang][key] || i18n['en'][key] || key;
+        };
+
+        function changeLanguage() {
+            const lang = document.getElementById('lang-select').value;
+            document.querySelectorAll('[data-i18n]').forEach(element => {
+                const key = element.getAttribute('data-i18n');
+                if (i18n[lang] && i18n[lang][key]) { element.textContent = i18n[lang][key]; }
+            });
+            if (patients.length > 0) { renderSidebar(); showPatientDOM(selectedIndex); fetchPatients(); }
+        }
+
+        let patients = [];
+        let selectedIndex = 0;
+        let previousCriticalPatients = new Set();
+        let currentAiText = "";
+        
+        // ⚡ DYNAMIC POLLING VARIABLES ⚡
+        let pollTimer;
+        let currentInterval = 20000; // Start at 20 seconds
+
+        setInterval(() => document.getElementById('clock').textContent = new Date().toLocaleTimeString(), 1000);
+
+        function openModal() { document.getElementById('addPatientModal').classList.add('active'); }
+        function closeModal() { document.getElementById('addPatientModal').classList.remove('active'); }
+        function showToast(msg, isDanger = false) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div'); 
+            toast.className = `toast ${isDanger ? 'danger' : ''}`; 
+            toast.textContent = msg;
+            container.appendChild(toast); setTimeout(() => toast.classList.add('show'), 10);
+            setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 4000);
+        }
+
+        function speakRecommendation() {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(currentAiText);
+                const lang = document.getElementById('lang-select').value;
+                utterance.lang = lang === 'hi' ? 'hi-IN' : lang === 'kn' ? 'kn-IN' : 'en-US';
+                window.speechSynthesis.speak(utterance);
+            } else { showToast("Text-to-speech not supported in this browser.", true); }
+        }
+
+        async function submitPatient(e) {
+            e.preventDefault();
+            const payload = {
+                name: document.getElementById('p_name').value, age: parseInt(document.getElementById('p_age').value),
+                heart_rate: parseInt(document.getElementById('p_hr').value), blood_pressure_sys: parseInt(document.getElementById('p_sys').value),
+                blood_pressure_dia: parseInt(document.getElementById('p_dia').value), oxygen: parseInt(document.getElementById('p_ox').value),
+            };
+            try {
+                const res = await fetch('/api/patients', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if(res.ok) { closeModal(); document.getElementById('addPatientForm').reset(); showToast("Patient registered successfully!"); fetchPatients(); }
+            } catch (err) { console.error(err); }
+        }
+
+        async function fetchPatients() {
+            try {
+                // Clear the timer so they don't overlap
+                clearTimeout(pollTimer);
+                
+                const lang = document.getElementById('lang-select').value;
+                const response = await fetch(`/api/patients?lang=${lang}`);
+                patients = await response.json();
+                
+                // --- ⚡ DYNAMIC POLLING LOGIC ⚡ ---
+                // If any patient has a live sensor, go into 3-second overdrive!
+                const isSensorActive = patients.some(p => p.is_sensor);
+                currentInterval = isSensorActive ? 3000 : 20000;
+                
+                // Update the UI Badge
+                const syncBadge = document.getElementById('syncIndicator');
+                if (isSensorActive) {
+                    syncBadge.textContent = "🔌 Live Hardware Sync: 3s";
+                    syncBadge.classList.add('live-mode');
+                } else {
+                    syncBadge.textContent = "↻ Auto-Sync: 20s";
+                    syncBadge.classList.remove('live-mode');
+                }
+                // ------------------------------------
+
+                let currentCriticalPatients = new Set();
+                let newEmergency = false;
+
+                patients.forEach(p => {
+                    if (p.status === 'critical') {
+                        currentCriticalPatients.add(p.patient_id);
+                        if (!previousCriticalPatients.has(p.patient_id)) { newEmergency = true; }
+                    }
+                });
+
+                if (newEmergency) {
+                    document.getElementById('alert-sound').play().catch(e => console.log("Audio blocked."));
+                    showToast(t('alertUrgent'), true);
+                }
+                previousCriticalPatients = currentCriticalPatients;
+
+                document.getElementById('stat-total').textContent = patients.length;
+                document.getElementById('stat-normal').textContent = patients.filter(p => p.status === 'normal').length;
+                document.getElementById('stat-warning').textContent = patients.filter(p => p.status === 'warning').length;
+                document.getElementById('stat-critical').textContent = patients.filter(p => p.status === 'critical').length;
+
+                renderSidebar();
+                showPatientDOM(selectedIndex); 
+            } catch (error) { 
+                console.error("Error fetching data:", error); 
+            }
+            
+            // Queue the next fetch
+            pollTimer = setTimeout(fetchPatients, currentInterval);
+        }
+
+        function renderSidebar() {
+            const list = document.getElementById('patient-list');
+            list.innerHTML = '';
+            patients.forEach((p, i) => {
+                const statusTranslated = t(p.status) || p.status.toUpperCase();
+                const sensorBadge = p.is_sensor ? `<span class="sensor-live-badge" style="padding: 1px 4px; font-size: 8px;">${t('liveSensor')}</span>` : '';
+                
+                const card = document.createElement('div');
+                card.className = `patient-card ${p.status} ${i === selectedIndex ? 'selected' : ''}`;
+                card.innerHTML = `<div class="card-top"><div><div class="patient-name">${p.name}</div><div class="patient-meta">${p.patient_id} · Age ${p.age} ${sensorBadge}</div></div><span class="badge ${p.status}">${statusTranslated.toUpperCase()}</span></div>
+                    <div class="mini-vitals"><div class="mini-vital">HR <span>${p.heart_rate}</span></div><div class="mini-vital">BP <span>${p.blood_pressure_sys}/${p.blood_pressure_dia}</span></div><div class="mini-vital">O2 <span>${p.oxygen}%</span></div></div>`;
+                card.onclick = () => { selectedIndex = i; showPatientDOM(i); renderSidebar(); };
+                list.appendChild(card);
+            });
+        }
+
+        function showPatientDOM(index) {
+            const p = patients[index];
+            if (!p) return;
+            const o2Color = p.oxygen < 95 ? '#ef4444' : '#22c55e';
+            const alertKeys = p.anomalies.map(a => a.vital);
+            const isAlert = (key) => alertKeys.includes(key);
+            currentAiText = p.recommendation;
+            
+            const mainSensorBadge = p.is_sensor ? `<span class="sensor-live-badge">${t('liveSensor')}</span>` : '';
+            
+            document.getElementById('main-panel').innerHTML = `
+                <div class="patient-header"><div><div class="patient-title">${p.name} ${mainSensorBadge}</div><div class="patient-info">Patient ID: ${p.patient_id} · Age: ${p.age} · Last updated: ${p.timestamp}</div></div></div>
+                <div class="vitals-grid">
+                    ${[{ label: t('heart_rate'), val: p.heart_rate, unit: 'bpm', key: 'heart_rate', icon: '❤️' }, { label: t('blood_pressure_sys'), val: p.blood_pressure_sys, unit: 'mmHg', key: 'blood_pressure_sys', icon: '🩺' }, { label: t('blood_pressure_dia'), val: p.blood_pressure_dia, unit: 'mmHg', key: 'blood_pressure_dia', icon: '💉' }, { label: t('oxygen'), val: p.oxygen, unit: '%', key: 'oxygen', icon: '💨' }].map(v => `<div class="vital-card ${isAlert(v.key) ? 'alert' : 'normal'}"><div class="vital-icon">${v.icon}</div><div class="vital-label">${v.label}</div><div class="vital-value">${v.val}</div><div class="vital-unit">${v.unit}</div></div>`).join('')}
+                </div>
+                <div class="charts-grid">
+                    <div class="chart-card"><div class="chart-title">${t('hrTrend')}</div><canvas id="hrChart" height="130"></canvas></div>
+                    <div class="chart-card"><div class="chart-title">${t('bpTrend')}</div><canvas id="bpChart" height="130"></canvas></div>
+                    <div class="chart-card"><div class="chart-title">${t('o2Sat')}</div><div class="gauge-container"><div class="gauge-value" style="color:${o2Color}">${p.oxygen}%</div><div class="gauge-label">SpO2 Level</div><div class="gauge-bar"><div class="gauge-fill" style="width:${p.oxygen}%;background:${o2Color}"></div></div></div></div>
+                    <div class="chart-card"><div class="chart-title">${t('radar')}</div><canvas id="radarChart" height="130"></canvas></div>
+                </div>
+                <div class="two-col">
+                    <div class="section"><div class="section-header"><div class="section-title">${t('alertsTitle')}</div></div><div>${p.anomalies.length === 0 ? `<div class="no-alerts">${t('noAlerts')}</div>` : p.anomalies.map(a => `<div class="alert-item"><div class="alert-icon">⚠️</div><div class="alert-content"><div class="alert-title">${t(a.vital).toUpperCase()} ${t('abnormal').toUpperCase()}</div><div class="alert-desc">${t('measured')}: ${a.value} · ${t('normalRange')}: ${a.min}–${a.max}</div></div></div>`).join('')}</div></div>
+                    <div class="ai-section">
+                        <div class="ai-header">
+                            <div class="ai-header-left">
+                                <span style="font-size:18px">🤖</span>
+                                <span style="font-size:14px;font-weight:600;color:#e2e8f0">${t('predictiveAI')}</span>
+                                <span class="ai-badge">Groq LLaMA 3.3 (70B)</span>
+                            </div>
+                            <button class="btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="speakRecommendation()">🔊 ${t('speakBtn')}</button>
+                        </div>
+                        <div class="ai-text">${p.recommendation}</div>
+                    </div>
+                </div>`;
+            
+            const times = p.is_sensor ? ['T-15s', 'T-12s', 'T-9s', 'T-6s', 'T-3s', 'Now'] : ['T-100s', 'T-80s', 'T-60s', 'T-40s', 'T-20s', 'Now'];
+            const tickColor = '#475569'; const gridColor = 'rgba(255,255,255,0.04)';
+
+            new Chart(document.getElementById('hrChart'), { type: 'line', data: { labels: times, datasets: [{ data: p.hr_history, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.4 }] }, options: { plugins: {legend: {display: false}}, scales: { x: { ticks: {color: tickColor}, grid: {color: gridColor} }, y: { ticks: {color: tickColor}, grid: {color: gridColor} } } } });
+            new Chart(document.getElementById('bpChart'), { type: 'line', data: { labels: times, datasets: [{ label: 'Sys', data: Array(6).fill(p.blood_pressure_sys), borderColor: '#3b82f6', tension: 0.4 }, { label: 'Dia', data: Array(6).fill(p.blood_pressure_dia), borderColor: '#8b5cf6', tension: 0.4 }] }, options: { plugins: {legend: {display: false}}, scales: { x: { ticks: {color: tickColor}, grid: {color: gridColor} }, y: { ticks: {color: tickColor}, grid: {color: gridColor} } } } });
+            new Chart(document.getElementById('radarChart'), { type: 'radar', data: { labels: ['Heart Rate', 'BP Systolic', 'BP Diastolic', 'Oxygen'], datasets: [{ label: 'Patient', data: [(p.heart_rate/100)*100, (p.blood_pressure_sys/140)*100, (p.blood_pressure_dia/90)*100, p.oxygen], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.15)' }, { label: 'Normal Max', data: [100, 100, 100, 100], borderColor: 'rgba(34,197,94,0.3)', backgroundColor: 'rgba(34,197,94,0.05)' }] }, options: { plugins: {legend: {display: false}}, scales: { r: { ticks: {color: tickColor, backdropColor: 'transparent'}, grid: {color: 'rgba(255,255,255,0.06)'}, pointLabels: {color: '#64748b'} } } } });
+        }
+
+        changeLanguage(); 
+        fetchPatients();
+        
+        document.body.addEventListener('click', function initAudio() {
+            document.getElementById('alert-sound').load();
+            document.body.removeEventListener('click', initAudio);
+        }, { once: true });
+    </script>
+</body>
+</html>
