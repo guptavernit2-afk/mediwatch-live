@@ -1,75 +1,55 @@
-# 🏥 MediWatch AI — Healthcare Agentic AI System
+# 🏥 MediWatch AI: Next-Gen Clinical Support & Live Monitoring
 
-## 📌 Overview
-MediWatch AI is a real-time patient monitoring dashboard powered by Agentic AI. It continuously monitors patient vitals, detects life-threatening anomalies, and autonomously generates clinical recommendations using LLaMA 3.1 via Groq.
+**MediWatch AI** is an intelligent, real-time healthcare dashboard designed to bridge the gap between hardware monitoring and AI-driven clinical insights. Built for the 2026 Hackathon, it combines live Arduino sensor data with the power of Agentic AI to provide localized, actionable medical recommendations.
 
-## 🌐 Live Demo
-👉 https://mediwatch-ai.onrender.com
+---
 
-## 🚀 Features
-- ✅ Real-time vital signs monitoring (Heart Rate, Blood Pressure, Oxygen)
-- ✅ Automatic anomaly detection with color-coded alerts (Normal/Warning/Critical)
-- ✅ AI-powered clinical recommendations using Groq LLaMA 3.1
-- ✅ Live heart rate trend charts and blood pressure graphs
-- ✅ Add new patients via the dashboard
-- ✅ Export patient data as CSV
-- ✅ Smart alarm system for new critical patients
-- ✅ Auto-refresh every 30 seconds
-- ✅ Sensor API endpoint for real hardware integration
+## 🌟 Key Features
+
+* **❤️ Real-Time Vitals Tracking:** Live heart rate monitoring via Arduino hardware integration with a dynamic fallback to AI-simulated data.
+* **🤖 Advanced Agentic AI:** Powered by **LLaMA 3.3 (70B)** on Groq, the system analyzes vitals and provides clinical recommendations in seconds.
+* **🌍 Multi-Lingual Support (i18n):** Full UI and AI generation support for **English, Hindi, and Kannada**, making it accessible for rural healthcare.
+* **🚨 Automated Alerts:** Instant **Slack integration** that notifies medical staff the moment a patient enters a critical state.
+* **📊 Clinical Radar & Trends:** Visualizes patient health through historical trend charts and a "Vitals Radar" for quick diagnostic assessment.
+* **🔊 Voice Accessibility:** Integrated Text-to-Speech (TTS) that reads out AI recommendations in the selected local language.
+
+---
 
 ## 🛠️ Tech Stack
-- **Backend**: Python, FastAPI, Uvicorn
-- **AI**: Groq API (LLaMA 3.1 8B Instant)
-- **Frontend**: HTML, CSS, JavaScript, Chart.js
-- **Deployment**: Render
 
-## ⚙️ How to Run Locally
+| Layer | Technology |
+| :--- | :--- |
+| **Backend** | Python, FastAPI, Uvicorn |
+| **AI / LLM** | Groq Cloud, LLaMA 3.3 (70B) |
+| **Frontend** | HTML5, CSS3 (Modern Glassmorphism), JavaScript (Vanilla), Chart.js |
+| **Hardware** | Arduino, Pulse Sensor, C++, Python Serial Bridge |
+| **Communication** | Slack Webhooks API |
+| **Deployment** | Render (Cloud), GitHub |
 
-### 1. Clone the repository
-git clone https://github.com/guptavernit2-afk/mediwatch-ai.git
-cd mediwatch-ai
+---
 
-### 2. Install dependencies
-pip install -r requirements.txt
+## 🔌 Hardware Setup
 
-### 3. Set up API key
-Create a .env file:
-GROQ_API_KEY=your-groq-api-key-here
+1.  **Arduino:** Connect the Pulse Sensor to Pin `A0`.
+2.  **Logic:** The Arduino uses a moving average filter and auto-thresholding for clean BPM detection.
+3.  **Bridge:** Run `bridge.py` on a local machine to pipe Serial data from the USB port to the Cloud API.
 
-### 4. Run the app
-uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+---
 
-### 5. Open in browser
-http://localhost:8000
+## 🚀 Getting Started
 
-## 🔌 Sensor Integration API
-To connect a real hardware sensor, send a POST request to:
-POST https://mediwatch-ai.onrender.com/api/patients
+### Local Development
+1. Clone the repo: `git clone <your-repo-url>`
+2. Install requirements: `pip install -r requirements.txt`
+3. Set up `.env` with `GROQ_API_KEY` and `SLACK_WEBHOOK`.
+4. Run server: `uvicorn app:app --reload`
 
-With this JSON body:
-{
-  "name": "Patient Name",
-  "age": 25,
-  "heart_rate": 98,
-  "blood_pressure_sys": 120,
-  "blood_pressure_dia": 80,
-  "oxygen": 97
-}
+### Hardware Bridge
+1. Plug in Arduino.
+2. Update `SERIAL_PORT` in `bridge.py`.
+3. Run: `python bridge.py`
 
-## 🏗️ Architecture
-Sensor / User Input
-       ↓
-FastAPI Backend (app.py)
-       ↓
-Anomaly Detection Engine → Groq LLaMA 3.1 AI
-       ↓
-Real-time Dashboard (index.html)
+---
 
-## 📊 How it Works
-1. Data Ingestion — Patient vitals monitored in real-time with live fluctuations
-2. Anomaly Engine — Detects dangerous drifts in Heart Rate, Blood Pressure, and Oxygen
-3. Agentic AI — LLaMA 3.1 analyzes trends and generates specific clinical recommendations
-4. Alert System — Critical patients trigger instant visual and audio alerts
 
-## 👤 Built For
-Gen-AI Hackathon 2026 — Healthcare Agentic AI Track
+*Built with ❤️ for a healthier future.*# 👨‍💻
