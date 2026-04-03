@@ -8,7 +8,7 @@ import json
 SERIAL_PORT = "COM9"  
 BAUD_RATE = 115200    # Matches his Arduino Serial.begin(115200)
 
-API_URL = "http://localhost:8000/api/sensor"
+API_URL = "https://mediwatch-live.onrender.com"
 PATIENT_ID = "P001"   # This will map the sensor to Raj Sharma on your dashboard
 
 def update_dashboard(bpm_val, is_active):
