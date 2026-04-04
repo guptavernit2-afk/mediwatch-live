@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from groq import Groq
 from dotenv import load_dotenv
 
-# 1. LOAD ENV FIRST
+# 1. LOAD ENV SECURELY
 load_dotenv()
 
 from fastapi import FastAPI
@@ -18,6 +18,7 @@ import uvicorn
 # 2. SLACK ALERTS
 from slack_alerts import send_slack_alert, send_slack_test_message
 
+# Securely load the API key from Render's Vault or your local .env file
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 app = FastAPI()
 
@@ -30,11 +31,12 @@ THRESHOLDS = {
 }
 
 PATIENTS_DATA = [
-    {"patient_id": "P001", "name": "Raj Sharma",   "age": 45, "heart_rate": 72,  "blood_pressure_sys": 120, "blood_pressure_dia": 80,  "oxygen": 98, "is_sensor": False, "last_ai_update": 0, "cached_rec": ""},
-    {"patient_id": "P002", "name": "Priya Patel",  "age": 32, "heart_rate": 65,  "blood_pressure_sys": 115, "blood_pressure_dia": 75,  "oxygen": 99, "is_sensor": False, "last_ai_update": 0, "cached_rec": ""},
-    {"patient_id": "P003", "name": "Amit Verma",   "age": 60, "heart_rate": 105, "blood_pressure_sys": 160, "blood_pressure_dia": 100, "oxygen": 91, "is_sensor": False, "last_ai_update": 0, "cached_rec": ""},
-    {"patient_id": "P004", "name": "Sunita Rao",   "age": 28, "heart_rate": 88,  "blood_pressure_sys": 118, "blood_pressure_dia": 76,  "oxygen": 97, "is_sensor": False, "last_ai_update": 0, "cached_rec": ""},
-    {"patient_id": "P005", "name": "Vikram Singh", "age": 55, "heart_rate": 48,  "blood_pressure_sys": 85,  "blood_pressure_dia": 55,  "oxygen": 93, "is_sensor": False, "last_ai_update": 0, "cached_rec": ""},
+    {"patient_id": "P001", "name": "Raj Sharma",   "age": 45, "heart_rate": 72,  "blood_pressure_sys": 120, "blood_pressure_dia": 80,  "oxygen": 98, "is_sensor": False, "last_ai_update": 0, "cached_rec": "", "cached_lang": "en"},
+    {"patient_id": "P002", "name": "Priya Patel",  "age": 32, "heart_rate": 65,  "blood_pressure_sys": 115, "blood_pressure_dia": 75,  "oxygen": 99, "is_sensor": False, "last_ai_update": 0, "cached_rec": "", "cached_lang": "en"},
+    # Fixed Amit Verma's ghost sensor!
+    {"patient_id": "P003", "name": "Amit Verma",   "age": 60, "heart_rate": 105, "blood_pressure_sys": 160, "blood_pressure_dia": 100, "oxygen": 91, "is_sensor": False, "last_ai_update": 0, "cached_rec": "", "cached_lang": "en"},
+    {"patient_id": "P004", "name": "Sunita Rao",   "age": 28, "heart_rate": 88,  "blood_pressure_sys": 118, "blood_pressure_dia": 76,  "oxygen": 97, "is_sensor": False, "last_ai_update": 0, "cached_rec": "", "cached_lang": "en"},
+    {"patient_id": "P005", "name": "Vikram Singh", "age": 55, "heart_rate": 48,  "blood_pressure_sys": 85,  "blood_pressure_dia": 55,  "oxygen": 93, "is_sensor": False, "last_ai_update": 0, "cached_rec": "", "cached_lang": "en"},
 ]
 
 HR_HISTORY = {p["patient_id"]: [p["heart_rate"]] * 6 for p in PATIENTS_DATA}
@@ -62,13 +64,14 @@ def get_ai_recommendation(patient: dict, anomalies: list, hr_history: list, lang
     lang_map = {"en": "English", "hi": "Hindi", "kn": "Kannada"}
     target_lang = lang_map.get(lang, "English")
     
-    prompt = f"Patient {patient['name']} (Age {patient['age']}). HR Trend: {trend}. Anomalies: {anomaly_text}. Give a 2-sentence medical recommendation. You MUST respond ONLY in {target_lang}."
+    prompt = f"Patient {patient['name']} (Age {patient['age']}). HR Trend: {trend}. Anomalies: {anomaly_text}. Give a 2-sentence medical recommendation."
     
     try:
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.3-70b-versatile", # Using the smart model for perfect translations
             messages=[
-                {"role": "system", "content": "You are a concise, highly advanced clinical AI. Give actionable medical recommendations in exactly two sentences."},
+                # Strict language enforcement in the system prompt
+                {"role": "system", "content": f"You are a clinical AI. You MUST write your entire response strictly in {target_lang}. Do NOT use English."},
                 {"role": "user", "content": prompt}
             ],
             max_tokens=150
@@ -118,7 +121,8 @@ def add_patient(patient: PatientCreate):
         "oxygen": patient.oxygen,
         "is_sensor": False,
         "last_ai_update": 0,
-        "cached_rec": ""
+        "cached_rec": "",
+        "cached_lang": "en"
     }
     PATIENTS_DATA.append(new_patient)
     HR_HISTORY[new_id] = [patient.heart_rate] * 6
@@ -180,13 +184,14 @@ def get_patients(lang: str = "en"):
         entry["anomalies"] = anomalies
         entry["status"] = get_status(anomalies)
         
-        # --- GROQ API SHIELD (20s Cache) ---
+        # --- GROQ API SHIELD (Smart Language Cache) ---
         if anomalies:
-            # Only ask Groq for new text if 20 seconds have passed since the last call
-            if current_time - p.get("last_ai_update", 0) >= 20 or not p.get("cached_rec"):
+            # ONLY ask Groq if 20 seconds passed, OR if it's blank, OR if the language changed!
+            if current_time - p.get("last_ai_update", 0) >= 20 or not p.get("cached_rec") or p.get("cached_lang") != lang:
                 new_rec = get_ai_recommendation(entry, anomalies, HR_HISTORY[pid], lang)
                 p["cached_rec"] = new_rec
                 p["last_ai_update"] = current_time
+                p["cached_lang"] = lang  # Remember the exact language we just translated to!
                 entry["recommendation"] = new_rec
             else:
                 entry["recommendation"] = p["cached_rec"] # Use safe cached text
@@ -198,11 +203,13 @@ def get_patients(lang: str = "en"):
 
         # Alerting
         if entry["status"] in ("warning", "critical"):
-            send_slack_alert(
-                patient=entry,
-                anomalies=anomalies,
-                recommendation=entry["recommendation"]
-            )
+            # Only trigger slack if it's a fresh update to avoid spamming the channel
+            if current_time - p.get("last_ai_update", 0) <= 2: 
+                send_slack_alert(
+                    patient=entry,
+                    anomalies=anomalies,
+                    recommendation=entry["recommendation"]
+                )
 
         results.append(entry)
     return results
